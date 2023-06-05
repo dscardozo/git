@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/num_edit_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Insira um número positivo para calcular a tabuada..." />
+
+    <Button
+        android:id="@+id/calcular_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Calcular" />
+
+    <TextView
+        android:id="@+id/resultado_text_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textAppearance="?android:textAppearanceMedium"
+        android:textStyle="bold"
+        android:padding="16dp" />
+
+</LinearLayout>
+
+
+Este layout exibe um campo de entrada para que o usuário digite um número positivo, um botão "Calcular" para iniciar o cálculo da tabuada e um TextView para exibir o resultado. O campo de entrada e o botão são organizados verticalmente, e o TextView é posicionado abaixo deles.
+
+Em seguida, podemos criar a classe MainActivity.java com o seguinte conteúdo:
+
+java
+import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+
+    private EditText numEditText;
+    private Button calcularButton;
+    private TextView resultadoTextView;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        numEditText = findViewById(R.id.num_edit_text);
+        calcularButton = findViewById(R.id.calcular_button);
+        resultadoTextView = findViewById(R.id.resultado_text_view);
+
+        calcularButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String numStr = numEditText.getText().toString();
+
+                if (TextUtils.isEmpty(numStr)) {
+                    Toast.makeText(MainActivity.this, "Por favor, insira um número.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                double num = Double.parseDouble(numStr);
+
+                if (num <= 0) {
+                    Toast.makeText(MainActivity.this, "Por favor, insira um número positivo.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                StringBuilder resultado = new StringBuilder();
+                for (int i = 1; i <= 10; i++) {
+                    resultado.append(String.format("%d X %.2f = %.2f%n", i, num, (i * num)));
+                }
+                resultadoTextView.setText(resultado.toString());
+            }
+        });
+    }
+}

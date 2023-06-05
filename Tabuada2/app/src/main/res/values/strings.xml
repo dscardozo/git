@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Tabuada</string>
+    <string name="Tabuada">TABUADA</string>
+    <string name="txt_button_calcular">Calcular</string>
+    <string name="insira">Insira um número </string>
+    <string name="calcular">Calcular</string>
+    <string name="d_x_2f_2f_n">%d X %.0f = %.0f%n</string>
+    <string name="tabuada">TABUADA</string>
+</resources>

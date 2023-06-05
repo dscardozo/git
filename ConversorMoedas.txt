@@ -1,0 +1,353 @@
+Certo, aqui está um exemplo de um aplicativo Android em Java que usa a API do [Open Exchange Rates](https://openexchangerates.org/) 
+para converter moedas em tempo real:
+
+1. No Android Studio, crie um novo projeto e defina os dados do aplicativo.
+
+2. Adicione as seguintes permissões no arquivo AndroidManifest.xml, para permitir que o aplicativo acesse a Internet:
+
+xml
+<uses-permission android:name="android.permission.INTERNET" />
+
+
+3. Crie uma nova atividade chamada `ConversorActivity`.
+
+4. Adicione as seguintes dependências no arquivo `build.gradle` do módulo do aplicativo:
+
+groovy
+implementation 'com.google.code.gson:gson:2.8.6'
+implementation 'com.squareup.okhttp3:okhttp:3.12.0'
+
+
+Essas dependências serão usadas para fazer a chamada à API e fazer o parsing do JSON retornado.
+
+5. Crie uma nova classe chamada `Conversor` que será responsável por fazer a chamada à API e receber o valor da conversão.
+
+java
+import android.os.AsyncTask;
+import android.util.Log;
+import com.google.gson.Gson;
+import java.io.IOException;
+import java.math.BigDecimal;
+import okhttp3.HttpUrl;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
+public class Conversor extends AsyncTask<String, Void, BigDecimal> {
+
+    private static final String BASE_URL = "https://openexchangerates.org/api/latest.json";
+    private static final String API_KEY = "sua_api_key_aqui";
+    private static final String TAG = Conversor.class.getSimpleName();
+    private final ConversorListener listener;
+    private final BigDecimal valor;
+    private final String de;
+    private final String para;
+
+    public Conversor(ConversorListener listener, BigDecimal valor, String de, String para) {
+        this.listener = listener;
+        this.valor = valor;
+        this.de = de;
+        this.para = para;
+    }
+
+    @Override
+    protected BigDecimal doInBackground(String... strings) {
+        OkHttpClient client = new OkHttpClient();
+
+        HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+        urlBuilder.addQueryParameter("app_id", API_KEY);
+        urlBuilder.addQueryParameter("base", de);
+        urlBuilder.addQueryParameter("symbols", para);
+        String url = urlBuilder.build().toString();
+
+        try {
+            Request request = new Request.Builder()
+                            .url(url)
+                            .build();
+
+            Response response = client.newCall(request).execute();
+            if (!response.isSuccessful()) {
+                return null;
+            }
+
+            String responseJson = response.body().string();
+
+            Gson gson = new Gson();
+            ExchangeRate exchangeRate = gson.fromJson(responseJson, ExchangeRate.class);
+
+            BigDecimal rate = BigDecimal.valueOf(exchangeRate.rates.get(para));
+            return valor.multiply(rate);
+
+        } catch (IOException e) {
+            Log.e(TAG, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    @Override
+    protected void onPostExecute(BigDecimal result) {
+        listener.onConversionCompleted(result);
+    }
+
+    public interface ConversorListener {
+        void onConversionCompleted(BigDecimal result);
+    }
+
+    private static class ExchangeRate {
+        public String base;
+        public long timestamp;
+        public String disclaimer;
+        public String license;
+        public java.util.Map<String, Double> rates;
+    }
+}
+
+
+`Conversor` é uma classe que estende `AsyncTask`, o que permite que seja executada em uma thread separada para não travar a interface do usuário. 
+Ela recebe os parâmetros da conversão (valor, moeda de origem e destino) no construtor, faz a chamada à API usando a biblioteca `okhttp`, 
+faz o parsing do JSON retornado usando a biblioteca `gson` e retorna o valor convertido.
+
+Observe que é necessário substituir `sua_api_key_aqui` pelo valor real da sua API key.
+
+6. No layout da atividade `ConversorActivity`, adicione dois EditTexts para o usuário digitar os valores de entrada e o resultado da conversão,
+ e duas Spinner para selecionar as moedas de origem e destino:
+
+xml
+<EditText
+    android:id="@+id/input_valor"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:hint="@string/hint_valor"
+    android:inputType="numberDecimal"/>
+
+<Spinner
+    android:id="@+id/spinner_de"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"/>
+
+<Spinner
+    android:id="@+id/spinner_para"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"/>
+
+<EditText
+    android:id="@+id/output_valor"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:enabled="false"
+    android:hint="@string/hint_saida"
+    android:inputType="numberDecimal"/>
+
+
+7. No método `onCreate` da atividade `ConversorActivity`, defina um `Adapter` para os `Spinner`s com as opções de moedas disponíveis, e adicione um listener no botão de conversão para fazer a chamada à API usando `Conversor` e atualizar a tela:
+
+java
+public class ConversorActivity extends AppCompatActivity implements AdapterView.OnItemSelectedListener,
+        Conversor.ConversorListener {
+
+    private Spinner spinnerDe;
+    private Spinner spinnerPara;
+    private EditText inputValor;
+    private EditText outputValor;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        spinnerDe = findViewById(R.id.spinner_de);
+        spinnerPara = findViewById(R.id.spinner_para);
+        inputValor = findViewById(R.id.input_valor);
+        outputValor = findViewById(R.id.output_valor);
+
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+                R.array.moedas, android.R.layout.simple_spinner_item);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+
+        spinnerDe.setAdapter(adapter);
+        spinnerPara.setAdapter(adapter);
+
+        Button buttonConvert = findViewById(R.id.button_convert);
+        buttonConvert.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                String de = spinnerDe.getSelectedItem().toString();
+                String para = spinnerPara.getSelectedItem().toString();
+                BigDecimal valor = new BigDecimal(inputValor.getText().toString().replace(',', '.'));
+                Conversor conversor = new Conversor(ConversorActivity.this, valor, de, para);
+                conversor.execute();
+            }
+        });
+    }
+
+    @Override
+    public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+        // Não implementado
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> adapterView) {
+        // Não implementado
+    }
+
+    @Override
+    public void onConversionCompleted(BigDecimal result) {
+        outputValor.setText(result.toPlainString());
+    }
+}
+
+
+Observe que é necessário definir um array de strings (`R.array.moedas`) com as opções de seleção dos `Spinner`s, caso contrário o aplicativo irá falhar.
+
+Espero que este exemplo te ajude com o seu projeto!
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout 
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <EditText
+        android:id="@+id/input_valor"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="30dp"
+        android:ems="10"
+        android:hint="@string/hint_valor"
+        android:inputType="numberDecimal"
+        app:layout_constraintBottom_toTopOf="@+id/separator"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <Spinner
+        android:id="@+id/spinner_de"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="30dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="30dp"
+        android:entries="@array/moedas"
+        app:layout_constraintEnd_toStartOf="@id/spacer"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/input_valor" />
+
+    <Space
+        android:id="@+id/spacer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="invisible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/spinner_de"
+        app:layout_constraintTop_toTopOf="@id/spinner_de" />
+
+    <Spinner
+        android:id="@+id/spinner_para"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="30dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginEnd="30dp"
+        android:entries="@array/moedas"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toEndOf="@id/spacer"
+        app:layout_constraintTop_toTopOf="@id/spinner_de" />
+
+    <View
+        android:id="@+id/separator"
+        android:layout_width="0dp"
+        android:layout_height="2dp"
+        android:layout_marginTop="24dp"
+        android:background="@color/colorAccent"
+        app:layout_constraintBottom_toTopOf="@+id/output_valor"
+        app:layout_constraintEnd_toEndOf="@+id/spinner_para"
+        app:layout_constraintStart_toStartOf="@+id/input_valor" />
+
+    <EditText
+        android:id="@+id/output_valor"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="30dp"
+        android:layout_marginBottom="24dp"
+        android:enabled="false"
+        android:hint="@string/hint_saida"
+        android:inputType="numberDecimal"
+        app:layout_constraintBottom_toTopOf="@+id/button_convert"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/button_convert"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="30dp"
+        android:layout_marginBottom="24dp"
+        android:text="@string/button_text"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
+
+
+
+1. No arquivo `strings.xml`, que geralmente se encontra na pasta `res/values` do seu projeto, adicione o item abaixo:
+
+xml
+<string-array name="moedas">
+    <item>Dólar</item>
+    <item>Euro</item>
+    <item>Iene</item>
+    <item>Real</item>
+</string-array>
+
+
+2. Em seguida, no arquivo `ConversorActivity.java`, no método `onCreate()`, encontre a seguinte linha de código:
+
+java
+ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this, R.array.moedas, android.R.layout.simple_spinner_dropdown_item);
+
+
+3. Substitua por:
+
+java
+ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, getResources().getStringArray(R.array.moedas));
+
+Claro, segue abaixo uma possível implementação para os métodos `onItemSelected()` e `onNothingSelected()`:
+
+java
+@Override
+public void onItemSelected(AdapterView<?> adapterView, View view, int i, long l) {
+   // Quando houver uma seleção de uma das opções do spinner, armazenamos a posição da opção selecionada
+   // caso essa posição corresponda a "Real" ou "Dólar", atualizamos a flag correspondente para indicar qual foi a moeda selecionada.
+   switch (adapterView.getId()) {
+       case R.id.spinner_de:
+           if (i == 0) {
+               // Real
+               isRealSelected = true;
+           } else if (i == 1) {
+               // Dólar
+               isRealSelected = false;
+           }
+           break;
+       case R.id.spinner_para:
+           if (i == 0) {
+               // Real
+               isDolarSelected = false;
+           } else if (i == 1) {
+               // Dólar
+               isDolarSelected = true;
+           }
+           break;
+    }
+}
+
+@Override
+public void onNothingSelected(AdapterView<?> adapterView) {
+   // Não precisamos fazer nada aqui
+}
